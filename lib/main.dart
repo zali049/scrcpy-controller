@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'models/device.dart';
 import 'models/profile.dart';
 import 'services/adb_service.dart';
@@ -68,7 +70,11 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_profileStore, _adbService, _processManager]),
+      animation: Listenable.merge([
+        _profileStore,
+        _adbService,
+        _processManager,
+      ]),
       builder: (context, _) {
         return Scaffold(
           body: Row(
@@ -79,7 +85,11 @@ class _MainScreenState extends State<MainScreen> {
                 color: const Color(0xFF121418),
                 child: _buildSidebar(),
               ),
-              const VerticalDivider(width: 1, thickness: 1, color: Color(0xFF282C37)),
+              const VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: Color(0xFF282C37),
+              ),
 
               // 2. Main Stage
               Expanded(
@@ -87,26 +97,37 @@ class _MainScreenState extends State<MainScreen> {
                   children: [
                     // Top Device Bar
                     _buildDeviceBar(),
-                    const Divider(height: 1, thickness: 1, color: Color(0xFF282C37)),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFF282C37),
+                    ),
 
                     // Profile Detail Editor
                     Expanded(
                       child: _profileStore.selectedProfile != null
                           ? _buildProfileEditor(_profileStore.selectedProfile!)
-                          : const Center(child: Text('Select or create a profile')),
+                          : const Center(
+                              child: Text('Select or create a profile'),
+                            ),
                     ),
 
                     // Bottom Control Action Bar
-                    const Divider(height: 1, thickness: 1, color: Color(0xFF282C37)),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFF282C37),
+                    ),
                     _buildControlBar(),
 
                     // Collapsible Log Console Drawer
                     if (_showConsole) ...[
-                      const Divider(height: 1, thickness: 1, color: Color(0xFF282C37)),
-                      SizedBox(
-                        height: 180,
-                        child: _buildConsoleLog(),
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Color(0xFF282C37),
                       ),
+                      SizedBox(height: 180, child: _buildConsoleLog()),
                     ],
                   ],
                 ),
@@ -120,7 +141,9 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildSidebar() {
     final presets = _profileStore.profiles.where((p) => p.isPreset).toList();
-    final customProfiles = _profileStore.profiles.where((p) => !p.isPreset).toList();
+    final customProfiles = _profileStore.profiles
+        .where((p) => !p.isPreset)
+        .toList();
 
     return Column(
       children: [
@@ -132,10 +155,14 @@ class _MainScreenState extends State<MainScreen> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.indigo.withOpacity(0.2),
+                  color: Colors.indigo.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.screen_share_rounded, color: Colors.indigoAccent, size: 22),
+                child: const Icon(
+                  Icons.screen_share_rounded,
+                  color: Colors.indigoAccent,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 10),
               const Text(
@@ -155,17 +182,34 @@ class _MainScreenState extends State<MainScreen> {
               // Presets Header
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text('PRESETS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                child: Text(
+                  'PRESETS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
               ),
               for (final p in presets) _buildProfileListItem(p),
 
               const SizedBox(height: 12),
               // Custom Profiles Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
-                    const Text('MY PROFILES', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const Text(
+                      'MY PROFILES',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline, size: 18),
@@ -180,7 +224,10 @@ class _MainScreenState extends State<MainScreen> {
               if (customProfiles.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Text('No custom profiles yet.\nClick + to create one.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  child: Text(
+                    'No custom profiles yet.\nClick + to create one.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
                 )
               else
                 for (final p in customProfiles) _buildProfileListItem(p),
@@ -193,14 +240,20 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildProfileListItem(Profile profile) {
     final isSelected = _profileStore.selectedProfile?.id == profile.id;
-    final isActive = _processManager.isRunning && _processManager.activeProfile?.id == profile.id;
+    final isActive =
+        _processManager.isRunning &&
+        _processManager.activeProfile?.id == profile.id;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.indigo.withOpacity(0.2) : Colors.transparent,
+        color: isSelected
+            ? Colors.indigo.withValues(alpha: 0.2)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
-        border: isSelected ? Border.all(color: Colors.indigoAccent.withOpacity(0.5)) : null,
+        border: isSelected
+            ? Border.all(color: Colors.indigoAccent.withValues(alpha: 0.5))
+            : null,
       ),
       child: ListTile(
         dense: true,
@@ -222,7 +275,10 @@ class _MainScreenState extends State<MainScreen> {
               Container(
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
               ),
           ],
         ),
@@ -244,7 +300,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildDeviceBar() {
-    final hasError = _adbService.lastError != null && _adbService.devices.isEmpty;
+    final hasError =
+        _adbService.lastError != null && _adbService.devices.isEmpty;
     return Column(
       children: [
         Container(
@@ -254,7 +311,9 @@ class _MainScreenState extends State<MainScreen> {
             children: [
               Icon(
                 Icons.smartphone_rounded,
-                color: _adbService.devices.isEmpty ? Colors.grey : Colors.greenAccent,
+                color: _adbService.devices.isEmpty
+                    ? Colors.grey
+                    : Colors.greenAccent,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -262,7 +321,9 @@ class _MainScreenState extends State<MainScreen> {
               // Device Dropdown
               if (_adbService.devices.isEmpty)
                 Text(
-                  _adbService.isScanning ? 'Scanning devices...' : 'No device connected',
+                  _adbService.isScanning
+                      ? 'Scanning devices...'
+                      : 'No device connected',
                   style: TextStyle(fontSize: 13, color: Colors.grey[400]),
                 )
               else
@@ -276,9 +337,16 @@ class _MainScreenState extends State<MainScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(d.isWireless ? Icons.wifi : Icons.usb, size: 16, color: Colors.indigoAccent),
+                          Icon(
+                            d.isWireless ? Icons.wifi : Icons.usb,
+                            size: 16,
+                            color: Colors.indigoAccent,
+                          ),
                           const SizedBox(width: 6),
-                          Text(d.displayName, style: const TextStyle(fontSize: 13)),
+                          Text(
+                            d.displayName,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         ],
                       ),
                     );
@@ -293,7 +361,11 @@ class _MainScreenState extends State<MainScreen> {
               const SizedBox(width: 8),
               IconButton(
                 icon: _adbService.isScanning
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.refresh, size: 18),
                 tooltip: 'Refresh devices',
                 onPressed: () => _adbService.refreshDevices(),
@@ -305,11 +377,20 @@ class _MainScreenState extends State<MainScreen> {
                 message: 'Kill & restart ADB server (fixes "ADB server didn\'t ACK" errors)',
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.restart_alt, size: 16),
-                  label: const Text('Reset ADB', style: TextStyle(fontSize: 12)),
+                  label: const Text(
+                    'Reset ADB',
+                    style: TextStyle(fontSize: 12),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     foregroundColor: Colors.orangeAccent,
-                    side: const BorderSide(color: Colors.orangeAccent, width: 0.5),
+                    side: const BorderSide(
+                      color: Colors.orangeAccent,
+                      width: 0.5,
+                    ),
                   ),
                   onPressed: () => _adbService.resetAdbServer(),
                 ),
@@ -319,20 +400,33 @@ class _MainScreenState extends State<MainScreen> {
               // Wireless Connect Button
               OutlinedButton.icon(
                 icon: const Icon(Icons.wifi, size: 16),
-                label: const Text('Wi-Fi Connect', style: TextStyle(fontSize: 12)),
+                label: const Text(
+                  'Wi-Fi Connect',
+                  style: TextStyle(fontSize: 12),
+                ),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                 ),
                 onPressed: _showWirelessDialog,
               ),
 
-              if (_adbService.selectedDevice != null && !_adbService.selectedDevice!.isWireless) ...[
+              if (_adbService.selectedDevice != null &&
+                  !_adbService.selectedDevice!.isWireless) ...[
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.settings_input_antenna, size: 16),
-                  label: const Text('Enable Wireless Mode (TCP/IP)', style: TextStyle(fontSize: 12)),
+                  label: const Text(
+                    'Enable Wireless Mode (TCP/IP)',
+                    style: TextStyle(fontSize: 12),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                   ),
                   onPressed: _enableTcpIp,
                 ),
@@ -350,12 +444,19 @@ class _MainScreenState extends State<MainScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orangeAccent),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 14,
+                  color: Colors.orangeAccent,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _adbService.lastError ?? '',
-                    style: const TextStyle(fontSize: 11, color: Colors.orangeAccent),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.orangeAccent,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -382,8 +483,14 @@ class _MainScreenState extends State<MainScreen> {
               child: TextFormField(
                 initialValue: profile.name,
                 enabled: !profile.isPreset,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                decoration: const InputDecoration(border: InputBorder.none, hintText: 'Profile Name'),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Profile Name',
+                ),
                 onChanged: (val) {
                   profile.name = val;
                   _profileStore.updateProfile(profile);
@@ -393,8 +500,14 @@ class _MainScreenState extends State<MainScreen> {
             if (profile.isPreset)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
-                child: const Text('Preset', style: TextStyle(fontSize: 11, color: Colors.blueAccent)),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Preset',
+                  style: TextStyle(fontSize: 11, color: Colors.blueAccent),
+                ),
               ),
             const SizedBox(width: 8),
             IconButton(
@@ -404,14 +517,20 @@ class _MainScreenState extends State<MainScreen> {
             ),
             if (!profile.isPreset)
               IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: Colors.redAccent,
+                ),
                 tooltip: 'Delete profile',
                 onPressed: () => _profileStore.deleteProfile(profile),
               ),
           ],
         ),
         Text(
-          profile.description.isNotEmpty ? profile.description : 'No description provided.',
+          profile.description.isNotEmpty
+              ? profile.description
+              : 'No description provided.',
           style: TextStyle(fontSize: 12, color: Colors.grey[400]),
         ),
         const SizedBox(height: 16),
@@ -422,56 +541,95 @@ class _MainScreenState extends State<MainScreen> {
           icon: Icons.videocam_outlined,
           children: [
             DropdownButtonFormField<int?>(
-              value: profile.maxSize,
-              decoration: const InputDecoration(labelText: 'Resolution (Max Size)'),
+              initialValue: profile.maxSize,
+              decoration: const InputDecoration(
+                labelText: 'Resolution (Max Size)',
+              ),
               items: const [
-                DropdownMenuItem(value: null, child: Text('Native (Device Original)')),
+                DropdownMenuItem(
+                  value: null,
+                  child: Text('Native (Device Original)'),
+                ),
                 DropdownMenuItem(value: 720, child: Text('720p (1280x720)')),
-                DropdownMenuItem(value: 1080, child: Text('1080p Full HD (1920x1080)')),
-                DropdownMenuItem(value: 1440, child: Text('1440p 2K (2560x1440)')),
+                DropdownMenuItem(
+                  value: 1080,
+                  child: Text('1080p Full HD (1920x1080)'),
+                ),
+                DropdownMenuItem(
+                  value: 1440,
+                  child: Text('1440p 2K (2560x1440)'),
+                ),
                 DropdownMenuItem(value: 1920, child: Text('1920 Max Size')),
               ],
-              onChanged: profile.isPreset ? null : (val) {
-                setState(() => profile.maxSize = val);
-                _profileStore.updateProfile(profile);
-              },
+              onChanged: profile.isPreset
+                  ? null
+                  : (val) {
+                      setState(() => profile.maxSize = val);
+                      _profileStore.updateProfile(profile);
+                    },
             ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: profile.videoBitRate,
+                    initialValue: profile.videoBitRate,
                     decoration: const InputDecoration(labelText: 'Bitrate'),
-                    items: ['2M', '4M', '8M', '12M', '16M', '24M', '32M'].map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
-                    onChanged: profile.isPreset ? null : (val) {
-                      if (val != null) setState(() => profile.videoBitRate = val);
-                      _profileStore.updateProfile(profile);
-                    },
+                    items: ['2M', '4M', '8M', '12M', '16M', '24M', '32M']
+                        .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                        .toList(),
+                    onChanged: profile.isPreset
+                        ? null
+                        : (val) {
+                            if (val != null) {
+                              setState(() => profile.videoBitRate = val);
+                            }
+                            _profileStore.updateProfile(profile);
+                          },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: profile.maxFps,
+                    initialValue: profile.maxFps,
                     decoration: const InputDecoration(labelText: 'Max FPS'),
-                    items: [30, 60, 90, 120].map((f) => DropdownMenuItem(value: f, child: Text('$f FPS'))).toList(),
-                    onChanged: profile.isPreset ? null : (val) {
-                      if (val != null) setState(() => profile.maxFps = val);
-                      _profileStore.updateProfile(profile);
-                    },
+                    items: [30, 60, 90, 120]
+                        .map(
+                          (f) =>
+                              DropdownMenuItem(value: f, child: Text('$f FPS')),
+                        )
+                        .toList(),
+                    onChanged: profile.isPreset
+                        ? null
+                        : (val) {
+                            if (val != null) {
+                              setState(() => profile.maxFps = val);
+                            }
+                            _profileStore.updateProfile(profile);
+                          },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: profile.videoCodec,
+                    initialValue: profile.videoCodec,
                     decoration: const InputDecoration(labelText: 'Codec'),
-                    items: ['h264', 'h265', 'av1'].map((c) => DropdownMenuItem(value: c, child: Text(c.toUpperCase()))).toList(),
-                    onChanged: profile.isPreset ? null : (val) {
-                      if (val != null) setState(() => profile.videoCodec = val);
-                      _profileStore.updateProfile(profile);
-                    },
+                    items: ['h264', 'h265', 'av1']
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(c.toUpperCase()),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: profile.isPreset
+                        ? null
+                        : (val) {
+                            if (val != null) {
+                              setState(() => profile.videoCodec = val);
+                            }
+                            _profileStore.updateProfile(profile);
+                          },
                   ),
                 ),
               ],
@@ -489,10 +647,12 @@ class _MainScreenState extends State<MainScreen> {
               title: const Text('Forward Device Audio'),
               subtitle: const Text('Play sound through computer speakers'),
               value: profile.audioEnabled,
-              onChanged: profile.isPreset ? null : (val) {
-                setState(() => profile.audioEnabled = val);
-                _profileStore.updateProfile(profile);
-              },
+              onChanged: profile.isPreset
+                  ? null
+                  : (val) {
+                      setState(() => profile.audioEnabled = val);
+                      _profileStore.updateProfile(profile);
+                    },
             ),
             if (profile.audioEnabled) ...[
               const SizedBox(height: 8),
@@ -500,25 +660,53 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: profile.audioCodec,
-                      decoration: const InputDecoration(labelText: 'Audio Codec'),
-                      items: ['opus', 'aac', 'flac', 'raw'].map((c) => DropdownMenuItem(value: c, child: Text(c.toUpperCase()))).toList(),
-                      onChanged: profile.isPreset ? null : (val) {
-                        if (val != null) setState(() => profile.audioCodec = val);
-                        _profileStore.updateProfile(profile);
-                      },
+                      initialValue: profile.audioCodec,
+                      decoration: const InputDecoration(
+                        labelText: 'Audio Codec',
+                      ),
+                      items: ['opus', 'aac', 'flac', 'raw']
+                          .map(
+                            (c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c.toUpperCase()),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: profile.isPreset
+                          ? null
+                          : (val) {
+                              if (val != null) {
+                                setState(() => profile.audioCodec = val);
+                              }
+                              _profileStore.updateProfile(profile);
+                            },
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: profile.audioBufferMs,
-                      decoration: const InputDecoration(labelText: 'Audio Buffer'),
-                      items: [20, 50, 80, 120].map((b) => DropdownMenuItem(value: b, child: Text('$b ms ${b <= 20 ? "(Low Latency)" : ""}'))).toList(),
-                      onChanged: profile.isPreset ? null : (val) {
-                        if (val != null) setState(() => profile.audioBufferMs = val);
-                        _profileStore.updateProfile(profile);
-                      },
+                      initialValue: profile.audioBufferMs,
+                      decoration: const InputDecoration(
+                        labelText: 'Audio Buffer',
+                      ),
+                      items: [20, 50, 80, 120]
+                          .map(
+                            (b) => DropdownMenuItem(
+                              value: b,
+                              child: Text(
+                                '$b ms ${b <= 20 ? "(Low Latency)" : ""}',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: profile.isPreset
+                          ? null
+                          : (val) {
+                              if (val != null) {
+                                setState(() => profile.audioBufferMs = val);
+                              }
+                              _profileStore.updateProfile(profile);
+                            },
                     ),
                   ),
                 ],
@@ -537,37 +725,45 @@ class _MainScreenState extends State<MainScreen> {
               title: const Text('Stay Awake'),
               subtitle: const Text('Prevent device from sleeping'),
               value: profile.stayAwake,
-              onChanged: profile.isPreset ? null : (val) {
-                setState(() => profile.stayAwake = val);
-                _profileStore.updateProfile(profile);
-              },
+              onChanged: profile.isPreset
+                  ? null
+                  : (val) {
+                      setState(() => profile.stayAwake = val);
+                      _profileStore.updateProfile(profile);
+                    },
             ),
             SwitchListTile(
               title: const Text('Turn Screen Off'),
               subtitle: const Text('Keep phone display black during mirroring'),
               value: profile.turnScreenOff,
-              onChanged: profile.isPreset ? null : (val) {
-                setState(() => profile.turnScreenOff = val);
-                _profileStore.updateProfile(profile);
-              },
+              onChanged: profile.isPreset
+                  ? null
+                  : (val) {
+                      setState(() => profile.turnScreenOff = val);
+                      _profileStore.updateProfile(profile);
+                    },
             ),
             SwitchListTile(
               title: const Text('Always on Top'),
               subtitle: const Text('Keep window floating above other windows'),
               value: profile.alwaysOnTop,
-              onChanged: profile.isPreset ? null : (val) {
-                setState(() => profile.alwaysOnTop = val);
-                _profileStore.updateProfile(profile);
-              },
+              onChanged: profile.isPreset
+                  ? null
+                  : (val) {
+                      setState(() => profile.alwaysOnTop = val);
+                      _profileStore.updateProfile(profile);
+                    },
             ),
             SwitchListTile(
               title: const Text('Show Touches'),
               subtitle: const Text('Display physical touches on phone screen'),
               value: profile.showTouches,
-              onChanged: profile.isPreset ? null : (val) {
-                setState(() => profile.showTouches = val);
-                _profileStore.updateProfile(profile);
-              },
+              onChanged: profile.isPreset
+                  ? null
+                  : (val) {
+                      setState(() => profile.showTouches = val);
+                      _profileStore.updateProfile(profile);
+                    },
             ),
           ],
         ),
@@ -597,15 +793,25 @@ class _MainScreenState extends State<MainScreen> {
         // Generated CLI Preview
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFF101216), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+            color: const Color(0xFF101216),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Generated Command Preview:', style: TextStyle(fontSize: 11, color: Colors.grey)),
+              const Text(
+                'Generated Command Preview:',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
               const SizedBox(height: 4),
               SelectableText(
                 'scrcpy ${profile.generateArguments(serial: _adbService.selectedDevice?.serial).join(" ")}',
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.greenAccent),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Colors.greenAccent,
+                ),
               ),
             ],
           ),
@@ -614,10 +820,17 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildSectionCard({required String title, required IconData icon, required List<Widget> children}) {
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF1F232B), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F232B),
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -625,7 +838,13 @@ class _MainScreenState extends State<MainScreen> {
             children: [
               Icon(icon, size: 18, color: Colors.indigoAccent),
               const SizedBox(width: 8),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -646,26 +865,41 @@ class _MainScreenState extends State<MainScreen> {
           if (isRunning)
             ElevatedButton.icon(
               icon: const Icon(Icons.stop_circle, size: 18),
-              label: const Text('Stop Mirroring', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text(
+                'Stop Mirroring',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
               onPressed: () => _processManager.stop(),
             )
           else
             ElevatedButton.icon(
               icon: const Icon(Icons.play_circle_fill, size: 18),
-              label: const Text('Start Mirroring', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text(
+                'Start Mirroring',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
               onPressed: () {
                 if (_profileStore.selectedProfile != null) {
-                  _processManager.start(_profileStore.selectedProfile!, device: _adbService.selectedDevice);
+                  _processManager.start(
+                    _profileStore.selectedProfile!,
+                    device: _adbService.selectedDevice,
+                  );
                 }
               },
             ),
@@ -675,7 +909,7 @@ class _MainScreenState extends State<MainScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -703,7 +937,10 @@ class _MainScreenState extends State<MainScreen> {
           // Toggle Console
           OutlinedButton.icon(
             icon: const Icon(Icons.terminal, size: 16),
-            label: Text(_showConsole ? 'Hide Terminal' : 'Show Terminal', style: const TextStyle(fontSize: 12)),
+            label: Text(
+              _showConsole ? 'Hide Terminal' : 'Show Terminal',
+              style: const TextStyle(fontSize: 12),
+            ),
             onPressed: () => setState(() => _showConsole = !_showConsole),
           ),
         ],
@@ -723,13 +960,18 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 const Icon(Icons.terminal, size: 14, color: Colors.grey),
                 const SizedBox(width: 6),
-                const Text('Terminal Output', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                const Text(
+                  'Terminal Output',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.copy, size: 14),
                   tooltip: 'Copy all logs',
                   onPressed: () {
-                    final allText = _processManager.logs.map((l) => '[${l.formattedTime}] ${l.text}').join('\n');
+                    final allText = _processManager.logs
+                        .map((l) => '[${l.formattedTime}] ${l.text}')
+                        .join('\n');
                     Clipboard.setData(ClipboardData(text: allText));
                   },
                 ),
@@ -752,7 +994,14 @@ class _MainScreenState extends State<MainScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(l.formattedTime, style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.grey[600])),
+                      Text(
+                        l.formattedTime,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: SelectableText(
@@ -760,7 +1009,9 @@ class _MainScreenState extends State<MainScreen> {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 11,
-                            color: l.isError ? Colors.redAccent : Colors.white70,
+                            color: l.isError
+                                ? Colors.redAccent
+                                : Colors.white70,
                           ),
                         ),
                       ),
@@ -776,7 +1027,10 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _promptNewProfile() {
-    final controller = TextEditingController(text: 'Custom Profile ${_profileStore.profiles.where((p) => !p.isPreset).length + 1}');
+    final controller = TextEditingController(
+      text:
+          'Custom Profile ${_profileStore.profiles.where((p) => !p.isPreset).length + 1}',
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -786,7 +1040,10 @@ class _MainScreenState extends State<MainScreen> {
           decoration: const InputDecoration(labelText: 'Profile Name'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
@@ -824,7 +1081,10 @@ class _MainScreenState extends State<MainScreen> {
                   flex: 3,
                   child: TextField(
                     controller: ipController,
-                    decoration: const InputDecoration(labelText: 'Phone IP', hintText: '192.168.1.50'),
+                    decoration: const InputDecoration(
+                      labelText: 'Phone IP',
+                      hintText: '192.168.1.50',
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -832,7 +1092,10 @@ class _MainScreenState extends State<MainScreen> {
                   flex: 1,
                   child: TextField(
                     controller: portController,
-                    decoration: const InputDecoration(labelText: 'Port', hintText: '5555'),
+                    decoration: const InputDecoration(
+                      labelText: 'Port',
+                      hintText: '5555',
+                    ),
                   ),
                 ),
               ],
@@ -840,17 +1103,25 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final ip = ipController.text.trim();
-              final port = portController.text.trim().isEmpty ? '5555' : portController.text.trim();
+              final port = portController.text.trim().isEmpty
+                  ? '5555'
+                  : portController.text.trim();
               if (ip.isNotEmpty) {
                 Navigator.pop(ctx);
                 final res = await _adbService.connectWireless('$ip:$port');
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(res.message), backgroundColor: res.success ? Colors.green : Colors.red),
+                    SnackBar(
+                      content: Text(res.message),
+                      backgroundColor: res.success ? Colors.green : Colors.red,
+                    ),
                   );
                 }
               }

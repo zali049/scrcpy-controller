@@ -186,13 +186,11 @@ jobs:
             DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}"
           SectionEnd
           "@
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
           $nsis | Out-File -FilePath "installer.nsi" -Encoding UTF8
           Write-Host "NSIS script written"
 
       - name: Compile NSIS installer
         run: |
-          mkdir -p dist
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
 
       - name: Upload Windows installer artifact
