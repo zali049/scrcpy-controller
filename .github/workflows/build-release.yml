@@ -149,7 +149,7 @@ jobs:
 
           !include "MUI2.nsh"
           !define MUI_ABORTWARNING
-          !define MUI_ICON "assets\bin\windows\scrcpy.png"
+         
 
           !insertmacro MUI_PAGE_WELCOME
           !insertmacro MUI_PAGE_DIRECTORY
@@ -193,7 +193,6 @@ jobs:
 
       - name: Compile NSIS installer
         run: |
-          if (-not (Test-Path "dist")) { New-Item -ItemType Directory -Path "dist" }
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
 
       - name: Upload Windows installer artifact
