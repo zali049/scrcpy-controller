@@ -1,0 +1,11 @@
+icons_launcher:
+  platforms:
+    macos:
+      enable: true
+      image_path:  "assets/bin/macos/scrcpy.png"
+    windows:
+      enable: true
+      image_path: "assets/bin/windows/scrcpy.png"
+    linux:
+      enable: true
+      image_path: "assets/bin/linux/scrcpy.png"
