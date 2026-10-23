@@ -1,0 +1,373 @@
+name: 🚀 Build & Release All Platforms
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.1)'
+        required: true
+        default: '1.0.0'
+
+env:
+  FLUTTER_VERSION: '3.47.7'
+  APP_NAME: 'ScrcpyController'
+  BUNDLE_ID: 'com.scrcpycontroller.app'
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # macOS → .pkg
+  # ─────────────────────────────────────────────────────────
+  build-macos:
+    name: 🍎 macOS PKG
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS
+        run: flutter build macos --release
+
+      - name: Embed scrcpy binaries
+        run: |
+          APP="build/macos/Build/Products/Release/scrcpy_gui_controller.app"
+          BIN_DEST="$APP/Contents/Resources/bin"
+          mkdir -p "$BIN_DEST"
+          cp assets/bin/macos/scrcpy         "$BIN_DEST/scrcpy"
+          cp assets/bin/macos/adb            "$BIN_DEST/adb"
+          cp assets/bin/macos/scrcpy-server  "$BIN_DEST/scrcpy-server"
+          chmod +x "$BIN_DEST/scrcpy" "$BIN_DEST/adb"
+          chmod 644 "$BIN_DEST/scrcpy-server"
+          xattr -rd com.apple.quarantine "$APP" 2>/dev/null || true
+
+      - name: Create PKG installer
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          APP="build/macos/Build/Products/Release/scrcpy_gui_controller.app"
+          mkdir -p dist/pkg_stage/Applications
+          cp -R "$APP" "dist/pkg_stage/Applications/${{ env.APP_NAME }}.app"
+          pkgbuild \
+            --root "dist/pkg_stage" \
+            --identifier "${{ env.BUNDLE_ID }}" \
+            --version "$VERSION" \
+            --install-location "/" \
+            --ownership recommended \
+            "dist/${{ env.APP_NAME }}-${VERSION}.pkg"
+          rm -rf dist/pkg_stage
+
+      - name: Upload PKG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-pkg
+          path: dist/*.pkg
+
+  # ─────────────────────────────────────────────────────────
+  # Windows → NSIS .exe installer
+  # ─────────────────────────────────────────────────────────
+  build-windows:
+    name: 🪟 Windows Installer (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Copy scrcpy binaries into build
+        shell: pwsh
+        run: |
+          $buildDir = "build\windows\x64\runner\Release"
+          $binSrc   = "assets\bin\windows"
+          Copy-Item "$binSrc\*" "$buildDir\" -Force
+          Write-Host "Binaries copied to $buildDir"
+          Get-ChildItem $buildDir | Select-Object Name, Length
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Write NSIS script
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $nsis = @"
+          !define APP_NAME    "${{ env.APP_NAME }}"
+          !define APP_VERSION "$version"
+          !define APP_EXE     "scrcpy_gui_controller.exe"
+          !define PUBLISHER   "ScrcpyController"
+          !define INSTALL_DIR "`$PROGRAMFILES64\${{ env.APP_NAME }}"
+
+          Name "`${APP_NAME} `${APP_VERSION}"
+          OutFile "dist\`${APP_NAME}-`${APP_VERSION}-Setup.exe"
+          InstallDir "`${INSTALL_DIR}"
+          InstallDirRegKey HKLM "Software\`${APP_NAME}" "Install_Dir"
+          RequestExecutionLevel admin
+          SetCompressor /SOLID lzma
+
+          !include "MUI2.nsh"
+          !define MUI_ABORTWARNING
+          !define MUI_ICON "assets\bin\windows\scrcpy.png"
+
+          !insertmacro MUI_PAGE_WELCOME
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          !insertmacro MUI_PAGE_FINISH
+          !insertmacro MUI_UNPAGE_CONFIRM
+          !insertmacro MUI_UNPAGE_INSTFILES
+          !insertmacro MUI_LANGUAGE "English"
+
+          Section "Install"
+            SetOutPath "`${INSTALL_DIR}"
+            File /r "build\windows\x64\runner\Release\*.*"
+
+            ; Desktop shortcut
+            CreateShortcut "`$DESKTOP\`${APP_NAME}.lnk" "`${INSTALL_DIR}\`${APP_EXE}"
+
+            ; Start Menu
+            CreateDirectory "`$SMPROGRAMS\`${APP_NAME}"
+            CreateShortcut "`$SMPROGRAMS\`${APP_NAME}\`${APP_NAME}.lnk" "`${INSTALL_DIR}\`${APP_EXE}"
+            CreateShortcut "`$SMPROGRAMS\`${APP_NAME}\Uninstall.lnk" "`${INSTALL_DIR}\Uninstall.exe"
+
+            ; Registry for Add/Remove Programs
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "DisplayName" "`${APP_NAME}"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "UninstallString" "`${INSTALL_DIR}\Uninstall.exe"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "DisplayVersion" "`${APP_VERSION}"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "Publisher" "`${PUBLISHER}"
+
+            WriteUninstaller "`${INSTALL_DIR}\Uninstall.exe"
+          SectionEnd
+
+          Section "Uninstall"
+            Delete "`${INSTALL_DIR}\*.*"
+            RMDir /r "`${INSTALL_DIR}"
+            Delete "`$DESKTOP\`${APP_NAME}.lnk"
+            RMDir /r "`$SMPROGRAMS\`${APP_NAME}"
+            DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}"
+          SectionEnd
+          "@
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $nsis | Out-File -FilePath "installer.nsi" -Encoding UTF8
+          Write-Host "NSIS script written"
+
+      - name: Compile NSIS installer
+        run: |
+          mkdir -p dist
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/*-Setup.exe
+
+  # ─────────────────────────────────────────────────────────
+  # Linux → .deb package
+  # ─────────────────────────────────────────────────────────
+  build-linux:
+    name: 🐧 Linux .deb Package
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            fakeroot
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux
+        run: flutter build linux --release
+
+      - name: Create .deb package
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          APP_NAME_LOWER="scrcpy-controller"
+          BUILD_DIR="build/linux/x64/release/bundle"
+          DEB_ROOT="dist/deb_stage"
+          INSTALL_DIR="$DEB_ROOT/opt/${{ env.APP_NAME }}"
+          DESKTOP_DIR="$DEB_ROOT/usr/share/applications"
+          ICON_DIR="$DEB_ROOT/usr/share/icons/hicolor/256x256/apps"
+
+          # Copy app bundle
+          mkdir -p "$INSTALL_DIR"
+          cp -r "$BUILD_DIR"/* "$INSTALL_DIR/"
+
+          # Copy scrcpy binaries
+          cp assets/bin/linux/scrcpy        "$INSTALL_DIR/scrcpy"
+          cp assets/bin/linux/adb           "$INSTALL_DIR/adb"
+          cp assets/bin/linux/scrcpy-server "$INSTALL_DIR/scrcpy-server"
+          chmod +x "$INSTALL_DIR/scrcpy" "$INSTALL_DIR/adb"
+
+          # Desktop entry
+          mkdir -p "$DESKTOP_DIR"
+          cat > "$DESKTOP_DIR/scrcpy-controller.desktop" << EOF
+          [Desktop Entry]
+          Version=$VERSION
+          Name=${{ env.APP_NAME }}
+          Comment=GUI Controller for scrcpy screen mirroring
+          Exec=/opt/${{ env.APP_NAME }}/scrcpy_gui_controller
+          Icon=scrcpy-controller
+          Terminal=false
+          Type=Application
+          Categories=Utility;System;
+          EOF
+
+          # Icon
+          mkdir -p "$ICON_DIR"
+          cp assets/bin/linux/scrcpy.png "$ICON_DIR/scrcpy-controller.png" 2>/dev/null || true
+
+          # Launcher symlink
+          mkdir -p "$DEB_ROOT/usr/local/bin"
+          ln -s "/opt/${{ env.APP_NAME }}/scrcpy_gui_controller" \
+                "$DEB_ROOT/usr/local/bin/scrcpy-controller"
+
+          # DEBIAN control file
+          INSTALLED_SIZE=$(du -sk "$INSTALL_DIR" | cut -f1)
+          mkdir -p "$DEB_ROOT/DEBIAN"
+          cat > "$DEB_ROOT/DEBIAN/control" << EOF
+          Package: $APP_NAME_LOWER
+          Version: $VERSION
+          Architecture: amd64
+          Maintainer: ScrcpyController <noreply@scrcpycontroller.app>
+          Installed-Size: $INSTALLED_SIZE
+          Depends: libgtk-3-0, libglib2.0-0
+          Section: utils
+          Priority: optional
+          Description: Scrcpy GUI Controller
+           A cross-platform GUI controller for scrcpy screen mirroring.
+           Supports profiles, wireless ADB, and one-click mirroring.
+          EOF
+
+          # postinst: set permissions and update desktop database
+          cat > "$DEB_ROOT/DEBIAN/postinst" << 'POSTINST'
+          #!/bin/bash
+          chmod +x /opt/ScrcpyController/scrcpy_gui_controller
+          chmod +x /opt/ScrcpyController/scrcpy
+          chmod +x /opt/ScrcpyController/adb
+          update-desktop-database /usr/share/applications 2>/dev/null || true
+          POSTINST
+          chmod 755 "$DEB_ROOT/DEBIAN/postinst"
+
+          # Build .deb
+          mkdir -p dist
+          fakeroot dpkg-deb --build "$DEB_ROOT" \
+            "dist/${APP_NAME_LOWER}_${VERSION}_amd64.deb"
+
+          echo "DEB built:"
+          ls -lh dist/*.deb
+
+      - name: Upload Linux .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: dist/*.deb
+
+  # ─────────────────────────────────────────────────────────
+  # GitHub Release: attach all artifacts
+  # ─────────────────────────────────────────────────────────
+  release:
+    name: 📋 Create GitHub Release
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ScrcpyController ${{ github.ref_name }}
+          body: |
+            ## 📦 ScrcpyController ${{ github.ref_name }}
+
+            GUI Controller for scrcpy — manage screen mirror profiles with one click.
+
+            ### Downloads
+            | Platform | File | Notes |
+            |----------|------|-------|
+            | 🍎 macOS | `ScrcpyController-*.pkg` | Double-click to install → `/Applications` |
+            | 🪟 Windows | `ScrcpyController-*-Setup.exe` | Run as Administrator |
+            | 🐧 Linux | `scrcpy-controller_*_amd64.deb` | `sudo dpkg -i *.deb` |
+
+            ### Requirements
+            - Android device with USB Debugging enabled
+            - macOS 14+, Windows 10+, or Ubuntu 20.04+
+
+            ### Bundled
+            - scrcpy 5.0.1
+            - ADB 35.0.2
+          files: release-assets/*
+          draft: false
+          prerelease: false
