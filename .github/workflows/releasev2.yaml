@@ -1,4 +1,4 @@
-name: 🚀 Build & Release All Platforms
+name: 🚀 Build & Release All Platforms V2
 
 on:
   push:
@@ -144,10 +144,6 @@ jobs:
           InstallDirRegKey HKLM "Software\`${APP_NAME}" "Install_Dir"
           RequestExecutionLevel admin
           SetCompressor /SOLID lzma
-
-          !include "MUI2.nsh"
-          !define MUI_ABORTWARNING
-          !define MUI_ICON "assets\bin\windows\scrcpy.png"
 
           !insertmacro MUI_PAGE_WELCOME
           !insertmacro MUI_PAGE_DIRECTORY
