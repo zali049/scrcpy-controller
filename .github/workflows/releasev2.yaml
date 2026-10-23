@@ -1,0 +1,286 @@
+name: 🚀 Build & Release All Platforms
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.1)'
+        required: true
+        default: '1.0.0'
+
+env:
+  FLUTTER_VERSION: '3.47.7'
+  APP_NAME: 'ScrcpyController'
+  BUNDLE_ID: 'com.scrcpycontroller.app'
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # macOS → .pkg
+  # ─────────────────────────────────────────────────────────
+  build-macos:
+    name: 🍎 macOS PKG
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS
+        run: flutter build macos --release
+
+      - name: Embed scrcpy binaries
+        run: |
+          APP="build/macos/Build/Products/Release/scrcpy_gui_controller.app"
+          BIN_DEST="$APP/Contents/Resources/bin"
+          mkdir -p "$BIN_DEST"
+          cp assets/bin/macos/scrcpy         "$BIN_DEST/scrcpy"
+          cp assets/bin/macos/adb            "$BIN_DEST/adb"
+          cp assets/bin/macos/scrcpy-server  "$BIN_DEST/scrcpy-server"
+          chmod +x "$BIN_DEST/scrcpy" "$BIN_DEST/adb"
+          chmod 644 "$BIN_DEST/scrcpy-server"
+          xattr -rd com.apple.quarantine "$APP" 2>/dev/null || true
+
+      - name: Create PKG installer
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          APP="build/macos/Build/Products/Release/scrcpy_gui_controller.app"
+          mkdir -p dist/pkg_stage/Applications
+          cp -R "$APP" "dist/pkg_stage/Applications/${{ env.APP_NAME }}.app"
+          pkgbuild \
+            --root "dist/pkg_stage" \
+            --identifier "${{ env.BUNDLE_ID }}" \
+            --version "$VERSION" \
+            --install-location "/" \
+            --ownership recommended \
+            "dist/${{ env.APP_NAME }}-${VERSION}.pkg"
+          rm -rf dist/pkg_stage
+
+      - name: Upload PKG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-pkg
+          path: dist/*.pkg
+
+  # ─────────────────────────────────────────────────────────
+  # Windows → NSIS .exe installer
+  # ─────────────────────────────────────────────────────────
+  build-windows:
+    name: 🪟 Windows Installer (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Copy scrcpy binaries into build
+        shell: pwsh
+        run: |
+          $buildDir = "build\windows\x64\runner\Release"
+          $binSrc   = "assets\bin\windows"
+          Copy-Item "$binSrc\*" "$buildDir\" -Force
+          Write-Host "Binaries copied to $buildDir"
+          Get-ChildItem $buildDir | Select-Object Name, Length
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Write NSIS script
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $nsis = @"
+          !define APP_NAME    "${{ env.APP_NAME }}"
+          !define APP_VERSION "$version"
+          !define APP_EXE     "scrcpy_gui_controller.exe"
+          !define PUBLISHER   "ScrcpyController"
+          !define INSTALL_DIR "`$PROGRAMFILES64\${{ env.APP_NAME }}"
+
+          Name "`${APP_NAME} `${APP_VERSION}"
+          OutFile "dist\`${APP_NAME}-`${APP_VERSION}-Setup.exe"
+          InstallDir "`${INSTALL_DIR}"
+          InstallDirRegKey HKLM "Software\`${APP_NAME}" "Install_Dir"
+          RequestExecutionLevel admin
+          SetCompressor /SOLID lzma
+
+          !include "MUI2.nsh"
+          !define MUI_ABORTWARNING
+          !define MUI_ICON "assets\bin\windows\scrcpy.png"
+
+          !insertmacro MUI_PAGE_WELCOME
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          !insertmacro MUI_PAGE_FINISH
+          !insertmacro MUI_UNPAGE_CONFIRM
+          !insertmacro MUI_UNPAGE_INSTFILES
+          !insertmacro MUI_LANGUAGE "English"
+
+          Section "Install"
+            SetOutPath "`${INSTALL_DIR}"
+            File /r "build\windows\x64\runner\Release\*.*"
+
+            ; Desktop shortcut
+            CreateShortcut "`$DESKTOP\`${APP_NAME}.lnk" "`${INSTALL_DIR}\`${APP_EXE}"
+
+            ; Start Menu
+            CreateDirectory "`$SMPROGRAMS\`${APP_NAME}"
+            CreateShortcut "`$SMPROGRAMS\`${APP_NAME}\`${APP_NAME}.lnk" "`${INSTALL_DIR}\`${APP_EXE}"
+            CreateShortcut "`$SMPROGRAMS\`${APP_NAME}\Uninstall.lnk" "`${INSTALL_DIR}\Uninstall.exe"
+
+            ; Registry for Add/Remove Programs
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "DisplayName" "`${APP_NAME}"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "UninstallString" "`${INSTALL_DIR}\Uninstall.exe"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "DisplayVersion" "`${APP_VERSION}"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "Publisher" "`${PUBLISHER}"
+
+            WriteUninstaller "`${INSTALL_DIR}\Uninstall.exe"
+          SectionEnd
+
+          Section "Uninstall"
+            Delete "`${INSTALL_DIR}\*.*"
+            RMDir /r "`${INSTALL_DIR}"
+            Delete "`$DESKTOP\`${APP_NAME}.lnk"
+            RMDir /r "`$SMPROGRAMS\`${APP_NAME}"
+            DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}"
+          SectionEnd
+          "@
+          # Menggunakan -Force menjamin folder dist dibuat tanpa memicu error crash jika folder sudah ada
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $nsis | Out-File -FilePath "installer.nsi" -Encoding UTF8
+          Write-Host "NSIS script written"
+
+      - name: Compile NSIS installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/*-Setup.exe
+
+  # ─────────────────────────────────────────────────────────
+  # Linux → .deb package
+  # ─────────────────────────────────────────────────────────
+  build-linux:
+    name: 🐧 Linux .deb Package
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            fakeroot
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux
+        run: flutter build linux --release
+
+      - name: Embed scrcpy binaries (Linux)
+        run: |
+          BUILD_DIR="build/linux/x64/release/bundle"
+          BIN_SRC="assets/bin/linux"
+          if [ -d "$BIN_SRC" ]; then
+            cp -r $BIN_SRC/* "$BUILD_DIR/"
+            chmod +x "$BUILD_DIR/scrcpy" "$BUILD_DIR/adb" 2>/dev/null || true
+          fi
+
+      - name: Create DEB Package structure
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          STAGE="dist/deb_stage"
+          mkdir -p "$STAGE/usr/bin"
+          mkdir -p "$STAGE/usr/share/${{ env.APP_NAME }}"
+          mkdir -p "$STAGE/usr/share/applications"
+          mkdir -p "$STAGE/DEBIAN"
+
+          cp -R build/linux/x64/release/bundle/* "$STAGE/usr/share/${{ env.APP_NAME }}/"
+          ln -s "/usr/share/${{ env.APP_NAME }}/scrcpy_gui_controller" "$STAGE/usr/bin/${{ env.APP_NAME }}"
+
+          cat << EOF > "$STAGE/DEBIAN/control"
+          Package: ${{ env.APP_NAME }}
+          Version: $VERSION
+          Architecture: amd64
+          Maintainer: ScrcpyController
+          Description: Desktop Controller GUI for Scrcpy
+          EOF
+
+          cat << EOF > "$STAGE/usr/share/applications/${{ env.APP_NAME }}.desktop"
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=${{ env.APP_NAME }}
+          Comment=Desktop Controller GUI for Scrcpy
+          Exec=/usr/bin/${{ env.APP_NAME }}
+          Icon=/usr/share/${{ env.APP_NAME }}/assets/bin/windows/scrcpy.png
+          Terminal=false
+          Categories=Utility;Development;
+          EOF
+
+          mkdir -p dist
