@@ -1,5 +1,7 @@
 name: 🚀 Build & Release All Platforms
 
+# tes trigger ulang pembacaan
+
 on:
   push:
     tags:
