@@ -147,7 +147,7 @@ jobs:
 
           !include "MUI2.nsh"
           !define MUI_ABORTWARNING
-          !define MUI_ICON "assets\bin\windows\scrcpy.png"
+          !define MUI_ICON "assets\bin\windows\scrcpy.ico"
 
           !insertmacro MUI_PAGE_WELCOME
           !insertmacro MUI_PAGE_DIRECTORY
